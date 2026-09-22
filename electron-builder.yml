@@ -1,0 +1,17 @@
+appId: ai.milkman.app
+productName: milkman
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - resources/**
+linux:
+  target:
+    - AppImage
+  category: Development
+  maintainer: koen
+  synopsis: Postman-style playground for the TypeSafe AI System One API
+npmRebuild: false
