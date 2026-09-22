@@ -3,11 +3,12 @@ import CodeMirror from '@uiw/react-codemirror'
 import { json, jsonParseLinter } from '@codemirror/lang-json'
 import { linter, lintGutter } from '@codemirror/lint'
 import { EditorView } from '@codemirror/view'
-import { Button, WibblingSpinner } from 'performative-ui'
+import { Button } from 'performative-ui'
 import { buildRequest, draftToRequestJson, emptyDraft } from '../lib/request'
 import type { DraftRequest } from '../lib/request'
 import { rainbowJsonTheme } from '../lib/jsonHighlight'
 import { BuilderView } from './BuilderView'
+import { Evaluating, Segmented } from './ui'
 
 export type RequestView = 'builder' | 'json'
 
@@ -75,31 +76,37 @@ export function RequestPanel({ draft, onChange, models, loading, sendStatus, onS
   const errors = validation.ok ? [] : validation.errors
   const showErrors = sendStatus.startsWith('invalid') || sendCount > 0 ? errors : []
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !loading) {
+        e.preventDefault()
+        handleSend()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title">
-          Request <span className="grad">⇄</span>
-        </span>
-        <div className="tabs">
-          <button className={`tab-btn ${view === 'builder' ? 'active' : ''}`} onClick={() => setView('builder')}>
-            Builder
+        <span className="panel-title">Request</span>
+        {view === 'json' && (
+          <button className="btn sm" onClick={formatJson}>
+            Format
           </button>
-          <button className={`tab-btn ${view === 'json' ? 'active' : ''}`} onClick={switchToJson}>
-            JSON
-          </button>
-        </div>
+        )}
+        <Segmented
+          options={VIEWS}
+          value={view}
+          onChange={(v) => (v === 'json' ? switchToJson() : setView('builder'))}
+        />
       </div>
       <div className="panel-body">
         {view === 'builder' ? (
           <BuilderView draft={draft} onChange={onChange} models={models} errors={showErrors} />
         ) : (
           <div className="json-editor">
-            <div className="json-copy-wrap">
-              <button className="icon-btn copy-btn" onClick={formatJson}>
-                Format
-              </button>
-            </div>
             <CodeMirror
               value={jsonText}
               height="100%"
@@ -110,7 +117,7 @@ export function RequestPanel({ draft, onChange, models, loading, sendStatus, onS
                 linter(jsonParseLinter()),
                 EditorView.lineWrapping,
                 EditorView.theme({
-                  '&': { height: '100%', fontSize: '12.5px' },
+                  '&': { height: '100%', fontSize: 'var(--fs-sm)' },
                   '.cm-scroller': { fontFamily: 'var(--mono)' },
                   '&.cm-focused': { outline: 'none' }
                 })
@@ -118,31 +125,44 @@ export function RequestPanel({ draft, onChange, models, loading, sendStatus, onS
               onChange={onJsonChange}
               basicSetup={{ foldGutter: true, autocompletion: true }}
             />
-            {jsonError && <div className="errors" style={{ marginTop: 8 }}><div className="errors-title">Invalid JSON</div><ul><li>{jsonError}</li></ul></div>}
-            <div className="hint" style={{ marginTop: 8 }}>
+            {jsonError && (
+              <div className="callout err">
+                <div className="callout-title">Invalid JSON</div>
+                <p>{jsonError}</p>
+              </div>
+            )}
+            <div className="hint">
               JSON edits win over the builder. Switch to Builder to go back to the form — last valid parse is kept.
             </div>
           </div>
         )}
       </div>
-      <div className="send-bar" style={{ padding: '0 14px 14px' }}>
-        <Button className="pui-btn send-btn" variant="wave" size="md" onClick={handleSend} loading={loading}>
+      <div className="panel-foot">
+        <Button className="send-btn" variant="wave" size="md" onClick={handleSend} loading={loading}>
           Send request
         </Button>
-        {loading && (
+        {loading ? (
           <span className="send-status">
-            <WibblingSpinner
-              glyphs={['✦', '✧', '⋆', '·']}
-              glyphColor="var(--hue-5)"
-              verbs={['Evaluating', 'Scoring', 'Weighing', 'Calibrating']}
-              verbInterval={1400}
-            />
+            <Evaluating />
           </span>
-        )}
+        ) : showErrors.length > 0 ? (
+          <span className="send-status err">
+            ✗ {showErrors.length} {showErrors.length === 1 ? 'issue' : 'issues'} to fix
+          </span>
+        ) : null}
+        <span className="spacer" />
+        <span className="hint">
+          <kbd className="kbd">Ctrl</kbd> + <kbd className="kbd">↵</kbd>
+        </span>
       </div>
     </section>
   )
 }
+
+const VIEWS: { value: RequestView; label: string }[] = [
+  { value: 'builder', label: 'Builder' },
+  { value: 'json', label: 'JSON' }
+]
 
 function jsonToDraft(value: Record<string, unknown>): DraftRequest {
   const draft = emptyDraft()
@@ -164,8 +184,7 @@ function jsonToDraft(value: Record<string, unknown>): DraftRequest {
               description: flatten(description)
             }))
           : [{ option: '', description: '' }],
-      scoreLevels:
-        q.type === 'score' && Array.isArray(q.criteria) ? q.criteria.map((l) => flatten(l)) : ['', '']
+      scoreLevels: q.type === 'score' && Array.isArray(q.criteria) ? q.criteria.map((l) => flatten(l)) : ['', '']
     }))
   }
   return draft

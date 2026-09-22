@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
-import { GlassCard, StatCounter, WibblingSpinner } from 'performative-ui'
+import { useEffect, useMemo, useState } from 'react'
+import { StatCounter } from 'performative-ui'
 import type { ApiResult, SystemOneResponse } from '../../../shared/types'
 import { formatDuration, formatTokens } from '../lib/request'
 import { JsonSyntax, prettyPrintJson } from '../lib/json'
 import { AnswerCard } from './AnswerCard'
+import { EmptyState, Evaluating, Segmented, statusTone } from './ui'
 
 export type ResponseMode = 'formatted' | 'json'
 
@@ -31,48 +32,41 @@ export function ResponsePanel({ response, loading, mode, onModeChange }: Respons
   }, [response?.rawBody])
 
   const isResp = response !== null && response.ok && isSystemOneResponse(parsed)
+  const showJson = response !== null && (mode === 'json' || !isResp)
+  const pretty = response ? prettyPrintJson(response.rawBody) : ''
 
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title">
-          Response <span className="grad">⇄</span>
-        </span>
-        <div className="tabs">
-          <button className={`tab-btn ${mode === 'formatted' ? 'active' : ''}`} onClick={() => onModeChange('formatted')}>
-            Formatted
-          </button>
-          <button className={`tab-btn ${mode === 'json' ? 'active' : ''}`} onClick={() => onModeChange('json')}>
-            JSON
-          </button>
-        </div>
+        <span className="panel-title">Response</span>
+        {showJson && pretty && <CopyButton text={pretty} />}
+        <Segmented options={MODES} value={mode} onChange={onModeChange} />
       </div>
 
       <div className="panel-body">
-        {loading && !response && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)' }}>
-            <WibblingSpinner glyphs={['✦', '✧', '⋆', '·']} glyphColor="var(--hue-5)" verbs={['Evaluating', 'Scoring', 'Weighing', 'Calibrating']} verbInterval={1400} />
-          </div>
+        {loading && (
+          <EmptyState>
+            <Evaluating />
+          </EmptyState>
         )}
 
         {!loading && !response && (
-          <div className="sidebar-empty" style={{ paddingTop: 60 }}>
-            Nothing here yet.
-            <br />
-            Build a request and hit <strong>Send request</strong>.
-          </div>
+          <EmptyState>
+            <span>Nothing here yet.</span>
+            <span>
+              Build a request and hit <strong>Send request</strong>.
+            </span>
+          </EmptyState>
         )}
 
         {response && !loading && (
           <>
             <StatusLine response={response} />
-
-            {mode === 'json' ? (
-              <JsonViewer response={response} />
-            ) : isResp && parsed ? (
-              <FormattedView response={parsed} />
+            {!response.ok && <ErrorCallout response={response} body={parsed} />}
+            {showJson ? (
+              pretty && <JsonSyntax source={pretty} />
             ) : (
-              <JsonViewer response={response} />
+              <FormattedView response={parsed as SystemOneResponse} />
             )}
           </>
         )}
@@ -81,114 +75,92 @@ export function ResponsePanel({ response, loading, mode, onModeChange }: Respons
   )
 }
 
+const MODES: { value: ResponseMode; label: string }[] = [
+  { value: 'formatted', label: 'Formatted' },
+  { value: 'json', label: 'JSON' }
+]
+
 function StatusLine({ response }: { response: ApiResult }) {
-  const cls = response.ok ? 'ok' : response.status >= 500 ? 'err' : response.status >= 400 ? 'warn' : response.status >= 300 ? 'warn' : 'ok'
-  const ok = response.ok
   return (
     <div className="status-line">
-      <span className={`status-chip ${cls}`}>
-        {ok ? '✓' : '✗'} {response.status ? `HTTP ${response.status} ${response.statusText}` : response.statusText}
+      <span className={`pill ${statusTone(response.status, response.ok)}`}>
+        {response.ok ? '✓' : '✗'}{' '}
+        {response.status ? `HTTP ${response.status} ${response.statusText}` : response.statusText}
       </span>
-      <span className="status-meta">
-        <span>⏱ {formatDuration(response.durationMs)}</span>
-        {response.error && <span style={{ color: 'var(--err)' }}>{response.error}</span>}
-      </span>
+      <span className="pill neutral">⏱ {formatDuration(response.durationMs)}</span>
+      {response.error && <span className="status-meta err">{response.error}</span>}
     </div>
   )
 }
 
 function FormattedView({ response }: { response: SystemOneResponse }) {
-  const answers = Object.entries(response.answers)
   return (
-    <div className="formatted-response">
+    <>
       <div className="usage">
-        <div className="u-item">
-          <span>model</span>
-          <span className="u-value" style={{ fontSize: 13 }}>{response.model}</span>
+        <div className="usage-item">
+          model <span className="usage-value model">{response.model}</span>
         </div>
-        <div className="u-item">
-          <span>input</span>
-          <span className="u-value"><StatCounter target={response.usage.input_tokens} format={(v) => formatTokens(v)} /></span>
-          <span>tok</span>
+        <div className="usage-item">
+          input
+          <span className="usage-value">
+            <StatCounter target={response.usage.input_tokens} format={formatTokens} />
+          </span>
+          tok
         </div>
-        <div className="u-item">
-          <span>output</span>
-          <span className="u-value"><StatCounter target={response.usage.output_tokens} format={(v) => formatTokens(v)} /></span>
-          <span>tok</span>
+        <div className="usage-item">
+          output
+          <span className="usage-value">
+            <StatCounter target={response.usage.output_tokens} format={formatTokens} />
+          </span>
+          tok
         </div>
       </div>
       <div className="answers">
-        {answers.map(([id, answer]) => (
-          <GlassCard key={id} className="answer-card" glowOnHover>
-            <AnswerCard id={id} answer={answer} />
-          </GlassCard>
+        {Object.entries(response.answers).map(([id, answer]) => (
+          <AnswerCard key={id} id={id} answer={answer} />
         ))}
       </div>
-    </div>
-  )
-}
-
-function JsonViewer({ response }: { response: ApiResult }) {
-  const pretty = prettyPrintJson(response.rawBody)
-  const body = useMemo(() => {
-    try {
-      return JSON.parse(response.rawBody) as Record<string, unknown>
-    } catch {
-      return null
-    }
-  }, [response.rawBody])
-
-  if (!response.ok) {
-    return (
-      <>
-        <div className="error-card">
-          <h4>
-            {response.status === 401
-              ? 'Unauthorized — check your API key'
-              : response.status === 422
-                ? 'Request failed validation'
-                : response.status === 429
-                  ? 'Rate limited'
-                  : response.status === 529
-                    ? 'TypeSafe is overloaded'
-                    : 'Request failed'}
-          </h4>
-          {body?.error ? <p className="error-hint">{String(body.error)}</p> : null}
-          {body?.message ? <p className="error-hint">{String(body.message)}</p> : null}
-          {body?.detail ? <p className="error-hint">{JSON.stringify(body.detail)}</p> : null}
-          {response.status === 422 && <p className="error-hint">Check that your questions are well-formed — missing fields and malformed criteria return 422.</p>}
-        </div>
-        {pretty && (
-          <>
-            <div className="json-copy-wrap">
-              <CopyButton text={pretty} />
-            </div>
-            <JsonSyntax source={pretty} />
-          </>
-        )}
-      </>
-    )
-  }
-
-  return (
-    <>
-      <div className="json-copy-wrap">
-        <CopyButton text={pretty} />
-      </div>
-      <JsonSyntax source={pretty} />
     </>
   )
 }
 
+const ERROR_TITLES: Record<number, string> = {
+  401: 'Unauthorized — check your API key',
+  422: 'Request failed validation',
+  429: 'Rate limited',
+  529: 'TypeSafe is overloaded'
+}
+
+function ErrorCallout({ response, body }: { response: ApiResult; body: unknown }) {
+  const b = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null
+  return (
+    <div className="callout err response-error">
+      <div className="callout-title">{ERROR_TITLES[response.status] ?? 'Request failed'}</div>
+      {b?.error ? <p>{String(b.error)}</p> : null}
+      {b?.message ? <p>{String(b.message)}</p> : null}
+      {b?.detail ? <p>{JSON.stringify(b.detail)}</p> : null}
+      {response.status === 422 && (
+        <p>Check that your questions are well-formed — missing fields and malformed criteria return 422.</p>
+      )}
+    </div>
+  )
+}
+
 function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => setCopied(false), 1200)
+    return () => clearTimeout(t)
+  }, [copied])
   return (
     <button
-      className="icon-btn copy-btn"
+      className="btn sm"
       onClick={() => {
-        void navigator.clipboard.writeText(text)
+        void navigator.clipboard.writeText(text).then(() => setCopied(true))
       }}
     >
-      Copy
+      {copied ? '✓ Copied' : 'Copy'}
     </button>
   )
 }

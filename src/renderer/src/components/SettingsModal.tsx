@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from 'performative-ui'
 import type { Settings } from '../../../shared/types'
 
@@ -13,7 +13,18 @@ export function SettingsModal({ settings, onSave, onClose }: SettingsModalProps)
   const [baseUrl, setBaseUrl] = useState(settings.baseUrl)
   const [showKey, setShowKey] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [testResult, setTestResult] = useState<{
+    ok: boolean
+    text: string
+  } | null>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const runTest = async () => {
     setTesting(true)
@@ -31,37 +42,58 @@ export function SettingsModal({ settings, onSave, onClose }: SettingsModalProps)
   }
 
   const save = () => {
-    onSave({ apiKey: apiKey.trim(), baseUrl: baseUrl.trim() || 'https://api.typesafe.ai' })
+    onSave({
+      apiKey: apiKey.trim(),
+      baseUrl: baseUrl.trim() || 'https://api.typesafe.ai'
+    })
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
-          <span className="modal-title">Settings</span>
+          <span className="modal-title" id="settings-title">
+            Settings
+          </span>
+          <button className="icon-btn" title="Close" aria-label="Close" onClick={onClose}>
+            ✕
+          </button>
         </div>
         <div className="modal-body">
           <div className="field">
-            <label className="field-label">API key</label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <label className="eyebrow" htmlFor="settings-key">
+              API key
+            </label>
+            <div className="input-row">
               <input
-                className="input"
+                id="settings-key"
+                className="input mono grow"
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="ts-..."
                 autoComplete="off"
                 spellCheck={false}
+                autoFocus
               />
-              <button className="icon-btn" onClick={() => setShowKey((s) => !s)} title={showKey ? 'Hide' : 'Show'}>
+              <button className="btn sm" onClick={() => setShowKey((s) => !s)}>
                 {showKey ? 'Hide' : 'Show'}
               </button>
             </div>
           </div>
           <div className="field">
-            <label className="field-label">Base URL</label>
+            <label className="eyebrow" htmlFor="settings-url">
+              Base URL
+            </label>
             <input
-              className="input"
+              id="settings-url"
+              className="input mono"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://api.typesafe.ai"
@@ -69,7 +101,7 @@ export function SettingsModal({ settings, onSave, onClose }: SettingsModalProps)
             />
           </div>
           {settings.apiKeyFromEnv && (
-            <div className="env-note">
+            <div className="callout warn">
               No key stored locally — the <code>TYPESAFE_API_KEY</code> environment variable is currently providing the
               key.
             </div>
@@ -81,12 +113,13 @@ export function SettingsModal({ settings, onSave, onClose }: SettingsModalProps)
           )}
         </div>
         <div className="modal-foot">
-          <Button size="sm" variant="ghost" onClick={onClose}>
+          <button className="btn" onClick={() => void runTest()} disabled={testing}>
+            {testing ? 'Testing…' : 'Test connection'}
+          </button>
+          <span className="spacer" />
+          <button className="btn" onClick={onClose}>
             Cancel
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => void runTest()} loading={testing}>
-            Test connection
-          </Button>
+          </button>
           <Button size="sm" variant="wave" onClick={save}>
             Save
           </Button>

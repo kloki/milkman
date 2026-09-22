@@ -1,6 +1,7 @@
 import type { HistoryEntry } from '../../../shared/types'
 import { PRESETS } from '../presets'
 import { formatTokens } from '../lib/request'
+import { EmptyState, RemoveButton, statusTone } from './ui'
 
 interface SidebarProps {
   history: HistoryEntry[]
@@ -23,14 +24,15 @@ export function Sidebar({
 }: SidebarProps) {
   if (collapsed) {
     return (
-      <aside className="sidebar collapsed">
+      <aside className="sidebar">
         <div className="rail">
-          <button className="rail-btn" title="Expand sidebar" onClick={onToggleCollapse}>
+          <button
+            className="icon-btn"
+            title="Show presets & history"
+            aria-label="Expand sidebar"
+            onClick={onToggleCollapse}
+          >
             »
-          </button>
-          <div className="rail-divider" />
-          <button className="rail-btn" title="Presets & history" onClick={onToggleCollapse}>
-            ✦
           </button>
         </div>
       </aside>
@@ -40,52 +42,85 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <span className="sidebar-head-title">Requests</span>
-        <button className="collapse-btn" title="Collapse sidebar" onClick={onToggleCollapse}>
+        <span className="sidebar-title">Requests</span>
+        <button className="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar" onClick={onToggleCollapse}>
           «
         </button>
       </div>
 
       <div className="sidebar-body">
-        <div className="sidebar-section">Presets</div>
+        <div className="eyebrow sidebar-section">Presets</div>
         {PRESETS.map((preset) => (
-          <button key={preset.id} className="sidebar-item" onClick={() => onLoadPreset(preset.id)}>
-            <div className="item-name">✦ {preset.name}</div>
-            <div className="preset-desc">{preset.description}</div>
-          </button>
+          <div key={preset.id} className="sidebar-item">
+            <button className="sidebar-item-main" onClick={() => onLoadPreset(preset.id)}>
+              <div className="item-name">
+                <span className="glyph">✦</span>
+                {preset.name}
+              </div>
+              <div className="item-meta wrap">{preset.description}</div>
+            </button>
+          </div>
         ))}
 
-        <div className="sidebar-section" style={{ marginTop: 16 }}>
+        <div className="eyebrow sidebar-section">
           Recent
           {history.length > 0 && (
-            <button className="mini-btn sidebar-clear-inline" onClick={onClearHistory}>
+            <button className="btn sm" onClick={onClearHistory}>
               Clear
             </button>
           )}
         </div>
         {history.length === 0 && (
-          <div className="sidebar-empty">No requests yet.<br />Send one and it lands here.</div>
+          <EmptyState compact>
+            No requests yet.
+            <br />
+            Send one and it lands here.
+          </EmptyState>
         )}
         {history.map((entry) => (
-          <div key={entry.id} className="sidebar-item-row">
-            <button className="sidebar-item" onClick={() => onLoadHistory(entry)}>
+          <div key={entry.id} className="sidebar-item removable">
+            <button className="sidebar-item-main" onClick={() => onLoadHistory(entry)}>
               <div className="item-name">{entry.name}</div>
-              <div className="item-meta">
-                {new Date(entry.ts).toLocaleString()} ·{' '}
-                {entry.response?.status ? `HTTP ${entry.response.status}` : 'never sent'}
-                {entry.response?.ok && entry.response.body ? ` · ${formatTokens(tokenCount(entry.response.body))} tok` : ''}
-              </div>
+              <HistoryMeta entry={entry} />
             </button>
-            <div className="sidebar-item-actions">
-              <button className="mini-btn" title="Delete" onClick={() => onRemoveHistory(entry.id)}>
-                ✕
-              </button>
-            </div>
+            <RemoveButton
+              className="sidebar-item-remove"
+              title="Delete from history"
+              onClick={() => onRemoveHistory(entry.id)}
+            />
           </div>
         ))}
       </div>
     </aside>
   )
+}
+
+function HistoryMeta({ entry }: { entry: HistoryEntry }) {
+  const res = entry.response
+  const tokens = res?.ok && res.body ? tokenCount(res.body) : 0
+  return (
+    <div className="item-meta">
+      <span>{formatTimestamp(entry.ts)}</span>
+      {res ? (
+        <span className={`item-status ${statusTone(res.status, res.ok)}`}>
+          {res.ok ? '✓' : '✗'} {res.status || 'error'}
+        </span>
+      ) : (
+        <span>never sent</span>
+      )}
+      {tokens > 0 && <span>{formatTokens(tokens)} tok</span>}
+    </div>
+  )
+}
+
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts)
+  const time = d.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return sameDay ? time : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`
 }
 
 function tokenCount(body: unknown): number {

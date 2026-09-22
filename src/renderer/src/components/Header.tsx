@@ -1,4 +1,4 @@
-import { Button, GradientText, Sparkle, StatusDot } from 'performative-ui'
+import { GradientText, Sparkle, StatusDot } from 'performative-ui'
 
 interface HeaderProps {
   apiKeyPresent: boolean
@@ -15,15 +15,13 @@ export function Header({ apiKeyPresent, apiKeyFromEnv, onOpenSettings }: HeaderP
         <span className="wordmark-sub">TypeSafe playground</span>
       </div>
       <div className="header-spacer" />
-      <div className="key-status">
+      <button className="btn sm key-status" title="Open settings" onClick={onOpenSettings}>
         <StatusDot color={apiKeyPresent ? 'var(--ok)' : 'var(--err)'} static={!apiKeyPresent} />
-        <span>
-          {apiKeyPresent ? (apiKeyFromEnv ? 'API key from env' : 'API key set') : 'No API key'}
-        </span>
-      </div>
-      <Button size="sm" variant="wave" onClick={onOpenSettings}>
+        {apiKeyPresent ? (apiKeyFromEnv ? 'API key from env' : 'API key set') : 'No API key'}
+      </button>
+      <button className="btn sm" onClick={onOpenSettings}>
         Settings
-      </Button>
+      </button>
     </header>
   )
 }

@@ -6,11 +6,10 @@ import { SettingsModal } from './components/SettingsModal'
 import { Sidebar } from './components/Sidebar'
 import { RequestPanel } from './components/RequestPanel'
 import { ResponsePanel } from './components/ResponsePanel'
+import type { ResponseMode } from './components/ResponsePanel'
 import { buildRequest, emptyDraft, requestToDraft } from './lib/request'
 import type { DraftRequest } from './lib/request'
 import { PRESETS } from './presets'
-
-export type ResponseMode = 'formatted' | 'json'
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
@@ -58,11 +57,14 @@ export default function App() {
     [applyDraft]
   )
 
-  const loadHistory = useCallback((entry: HistoryEntry) => {
-    applyDraft(requestToDraft(entry.request, entry.name))
-    if (entry.response) setResponse(entry.response)
-    setResponseMode('formatted')
-  }, [applyDraft])
+  const loadHistory = useCallback(
+    (entry: HistoryEntry) => {
+      applyDraft(requestToDraft(entry.request, entry.name))
+      if (entry.response) setResponse(entry.response)
+      setResponseMode('formatted')
+    },
+    [applyDraft]
+  )
 
   const send = useCallback(async () => {
     const built = buildRequest(draft)

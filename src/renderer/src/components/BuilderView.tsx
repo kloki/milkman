@@ -1,6 +1,7 @@
 import type { DraftRequest, ValidationIssue } from '../lib/request'
 import { emptyQuestion } from '../lib/request'
 import { QuestionEditor } from './QuestionEditor'
+import { FieldError } from './ui'
 
 interface BuilderViewProps {
   draft: DraftRequest
@@ -16,23 +17,26 @@ export function BuilderView({ draft, onChange, models, errors }: BuilderViewProp
   }
 
   const removeQuestion = (index: number) => {
-    onChange({ ...draft, questions: draft.questions.filter((_, i) => i !== index) })
+    onChange({
+      ...draft,
+      questions: draft.questions.filter((_, i) => i !== index)
+    })
   }
 
   const addQuestion = () => {
     onChange({ ...draft, questions: [...draft.questions, emptyQuestion()] })
   }
 
-  const errorFor = (path: string) => {
-    const issue = errors.find((e) => e.path === path)
-    return issue?.message
-  }
+  const errorFor = (path: string) => errors.find((e) => e.path === path)?.message
 
   return (
-    <div className="builder">
+    <div className="stack">
       <div className="field">
-        <label className="field-label">Request name</label>
+        <label className="eyebrow" htmlFor="req-name">
+          Request name
+        </label>
         <input
+          id="req-name"
           className="input"
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value })}
@@ -41,25 +45,27 @@ export function BuilderView({ draft, onChange, models, errors }: BuilderViewProp
       </div>
 
       <div className="field">
-        <label className="field-label">
+        <label className="eyebrow" htmlFor="req-state">
           State <span className="req">*</span>
         </label>
         <textarea
-          className="textarea state"
+          id="req-state"
+          className="textarea tall"
           value={draft.state}
           onChange={(e) => onChange({ ...draft, state: e.target.value })}
           placeholder="Paste the text or structured data to evaluate…"
         />
-        {errorFor('state') && <div className="hint" style={{ color: 'var(--err)' }}>{errorFor('state')}</div>}
+        <FieldError message={errorFor('state')} />
         <div className="hint">Objects/arrays are sent as JSON; anything else is sent as a string.</div>
       </div>
 
       <div className="field">
-        <label className="field-label">
+        <label className="eyebrow" htmlFor="req-model">
           Model <span className="req">*</span>
         </label>
         <input
-          className="input"
+          id="req-model"
+          className="input mono"
           list="milkman-models"
           value={draft.model}
           onChange={(e) => onChange({ ...draft, model: e.target.value })}
@@ -71,14 +77,15 @@ export function BuilderView({ draft, onChange, models, errors }: BuilderViewProp
             <option key={m} value={m} />
           ))}
         </datalist>
-        {errorFor('model') && <div className="hint" style={{ color: 'var(--err)' }}>{errorFor('model')}</div>}
+        <FieldError message={errorFor('model')} />
       </div>
 
       <div className="field">
-        <div className="field-label">
-          Questions <span className="req">*</span> <span style={{ textTransform: 'none', fontWeight: 500, color: 'var(--text-faint)', letterSpacing: 0 }}>— evaluated in parallel against the same state</span>
+        <div className="eyebrow">
+          Questions <span className="req">*</span>
+          <span className="aside">— evaluated in parallel against the same state</span>
         </div>
-        {errorFor('questions') && <div className="hint" style={{ color: 'var(--err)' }}>{errorFor('questions')}</div>}
+        <FieldError message={errorFor('questions')} />
         <div className="questions">
           {draft.questions.map((q, i) => (
             <QuestionEditor
@@ -90,18 +97,20 @@ export function BuilderView({ draft, onChange, models, errors }: BuilderViewProp
               onDelete={() => removeQuestion(i)}
             />
           ))}
-          <button className="add-btn add-question" onClick={addQuestion}>
+          <button className="add-btn" onClick={addQuestion}>
             + Add question
           </button>
         </div>
       </div>
 
       {errors.length > 0 && (
-        <div className="errors">
-          <div className="errors-title">Can’t send yet</div>
+        <div className="callout err">
+          <div className="callout-title">Can’t send yet</div>
           <ul>
             {errors.map((e, i) => (
-              <li key={i}>{e.path}: {e.message}</li>
+              <li key={i}>
+                <code>{e.path}</code> — {e.message}
+              </li>
             ))}
           </ul>
         </div>
